@@ -25,7 +25,7 @@ useKernelisedData = 1;
 %Enable/add required tool boxes
 addPath = 1;
 BASE_PATH = functionEnvSetup(SYSTEM_PLATFORM, addPath);
-VIEW_TSNE = 0;
+VIEW_TSNE = 1;
 
 %% START >> Load data
 
@@ -107,7 +107,7 @@ end
 
 %% END >> Mapping of attributes
 
-if VIEW_TSNE
+if 0 %VIEW_TSNE
     %Plot seen and unseen samples
 %     semanticEmbeddingFullData = [semanticEmbeddingsTrain; semanticEmbeddingsTest];
 %     semanticLabelsFullData = [labelsTrainingSubsetData; labelsTestingData];
@@ -142,7 +142,7 @@ end
 
 %% Start >> Metric learning
 %Prepare data for stochastic gradient descend
-numberOfSamplesForSGDPerClass = 5;
+numberOfSamplesForSGDPerClass = 50;
 attributesMatSubset = [];%zeros(numberOfSamplesForSGDPerClass * length(trainClassNames), size(attributesMat, 2));
 attributesMatSubsetLabels = [];
 
@@ -152,10 +152,37 @@ for p = 1:length(trainClassNames)
     attributesMatSubset = [attributesMatSubset; semanticEmbeddingsTrain(startI:endI, :)];
     attributesMatSubsetLabels = [attributesMatSubsetLabels; labelsTrainingSubsetData(startI:endI)];
 end
-
 metricLearned = functionLearnMetric(attributesMatSubset, attributesMatSubsetLabels, ...
-    numberOfSamplesForSGDPerClass, length(trainClassNames));
+numberOfSamplesForSGDPerClass, length(trainClassNames));
+  
 %% END >> Metric learning
+
+if VIEW_TSNE
+%plot seen points
+    semanticEmbeddings = attributesMatSubset;
+    semanticEmbeddingsLabels = attributesMatSubsetLabels;
+    labelsAsClassNames = [];
+    labelsAsClassNames = functionGetLabelsAsClassNames(inputData.classNames, semanticEmbeddingsLabels);
+    mappedData = [];
+    mappedData = funtionTSNEVisualisation(semanticEmbeddings');
+    figureTitle = sprintf('Subset seen class samples MAPPED');
+    functionMyScatterPlot(mappedData, labelsAsClassNames', length(trainClassNames), figureTitle);
+    labelsAsClassNames = [];
+    
+    metricMappedAttributeSubset = attributesMatSubset * metricLearned;
+    semanticEmbeddings = metricMappedAttributeSubset;
+    semanticEmbeddingsLabels = attributesMatSubsetLabels;
+    labelsAsClassNames = [];
+    labelsAsClassNames = functionGetLabelsAsClassNames(inputData.classNames, semanticEmbeddingsLabels);
+    mappedData = [];
+    mappedData = funtionTSNEVisualisation(semanticEmbeddings');
+    figureTitle = sprintf('Metric mapped Subset seen class samples MAPPED');
+    functionMyScatterPlot(mappedData, labelsAsClassNames', length(trainClassNames), figureTitle);
+    labelsAsClassNames = [];
+    
+end
+
+
 
 %% START >> Semantic to semantic mapping
 useKernelisedData = 0;
