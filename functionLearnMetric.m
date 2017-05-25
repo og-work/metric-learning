@@ -1,7 +1,7 @@
 % Inputs:
 % *inData: P x Q matrix with P data points each of Q dimension
 % *inLabels: P x 1 matrix containing labels of P data points in inData
-%
+%inNumberOfSamplesPerClassinNumberOfClasses
 % Outputs:
 % *outM: Metric learned which is a matrix of size Q x Q
 
@@ -81,7 +81,7 @@ for iteration = 1:maxIterations
     [minValue classKIndices] = min(betweenClassDistanceMat);
     minValueMat = repmat(minValue, length(minValue), 1);
     minValueMat = minValueMat';
-    costMat = distanceMatrix.*blockDiagonalOnesMat + 1.*blockDiagonalOnesMat - blockDiagonalOnesMat.*minValueMat;
+    costMat = distanceMatrix.*blockDiagonalOnesMat + 0.*blockDiagonalOnesMat - blockDiagonalOnesMat.*minValueMat;
     costMat = (costMat > 0);
     
     for sampleIndex = 1:size(distanceMatrix, 1)
@@ -92,6 +92,8 @@ for iteration = 1:maxIterations
     
     %second term of gradient
     loss2 = 0;
+    gradientGtTerm2 = gradientGtTerm2 * 0;
+    
     for t = 1:length(indexSetOfIJK)
         i = indexSetOfIJK(t,1); j = indexSetOfIJK(t,2); k = indexSetOfIJK(t,3);
         index1 = (i - 1) * numberOfDataSamples + j;
@@ -103,9 +105,13 @@ for iteration = 1:maxIterations
     
     gradientGt = (1 - alpha) * gradientGtTerm1 + alpha * gradientGtTerm2;
     M = M - lambda * gradientGt;
+    tmpM = M;
+    M = (M + M')/2;
+    all(eig(M) > 0)
     [eigVec eigVal] = eig(M);
-    eigVec = real(eigVec);
-    eigVal = real(eigVal);
+    [V D W] = eig(M);
+    %eigVec = real(eigVec);
+    %eigVal = real(eigVal);
     eigVal(eigVal < 0) = 0;
     M = eigVec * eigVal * eigVec';
     all(eig(M) > 0)

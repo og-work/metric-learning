@@ -1,7 +1,7 @@
 
 clc;
 clear
-close all;
+% close all;
 
 % 1: Linux Laptop
 % 2: Windows laptop
@@ -25,7 +25,7 @@ useKernelisedData = 1;
 %Enable/add required tool boxes
 addPath = 1;
 BASE_PATH = functionEnvSetup(SYSTEM_PLATFORM, addPath);
-VIEW_TSNE = 1;
+VIEW_TSNE = 0;
 
 %% START >> Load data
 
@@ -44,21 +44,26 @@ testClassNames = inputData.classNames(inputData.defaultTestClassLabels);
 
 %Get training class features
 vggFeaturesTraining = [];
+vggFeaturesTesting = [];
 labelsTrainingData = [];
 labelsTestingData = [];
 indicesOfTrainingSamples = [];
 indicesOfTestingSamples = [];
 
 for classInd = 1:length(defaultTrainClassLabels)
+    tmp = [];
     tmp = (inputData.datasetLabels == defaultTrainClassLabels(classInd));
     indicesOfTrainingSamples = [indicesOfTrainingSamples; find(tmp)];
     vggFeaturesTraining = [vggFeaturesTraining inputData.vggFeatures(:, find(tmp))];
     labelsTrainingData = [labelsTrainingData; defaultTrainClassLabels(classInd) * ones(sum(tmp), 1)];
 end
 
+
 for classInd = 1:length(inputData.defaultTestClassLabels)
+    tmp = [];
     tmp = (inputData.datasetLabels == inputData.defaultTestClassLabels(classInd));
     indicesOfTestingSamples = [indicesOfTestingSamples; find(tmp)];
+    vggFeaturesTesting = [vggFeaturesTesting, inputData.vggFeatures(:, find(tmp))];
     labelsTestingData = [labelsTestingData; inputData.defaultTestClassLabels(classInd) * ones(sum(tmp), 1)];
 end
 
@@ -142,7 +147,7 @@ end
 
 %% Start >> Metric learning
 %Prepare data for stochastic gradient descend
-numberOfSamplesForSGDPerClass = 50;
+numberOfSamplesForSGDPerClass = 20;
 attributesMatSubset = [];%zeros(numberOfSamplesForSGDPerClass * length(trainClassNames), size(attributesMat, 2));
 attributesMatSubsetLabels = [];
 
@@ -182,6 +187,26 @@ if VIEW_TSNE
     
 end
 
+%% Start >> Testing
+inferedLabels = zeros(length(semanticEmbeddingsTest), 1);
+distanceMat = [];
+for t = 1:size(semanticEmbeddingsTest, 1)
+    p = 1;
+    for class = 1:length(testClassNames)
+        xi = semanticEmbeddingsTest(t, :);
+        xj = inputData.attributes(:, inputData.defaultTestClassLabels(class))';
+        ximxj = xi - xj;
+        classDistances(p) = ximxj * metricLearned * ximxj';
+        p = p + 1;
+    end
+    distanceMat = [distanceMat; classDistances];
+    [minVal index] = min(classDistances);
+    inferedLabels(t, 1) = inputData.defaultTestClassLabels(index);
+end
+
+%Find accuracy 
+accuracy = 100 * sum(labelsTestingData == inferedLabels)/length(inferedLabels)
+%% End >> Testing
 
 
 %% START >> Semantic to semantic mapping
