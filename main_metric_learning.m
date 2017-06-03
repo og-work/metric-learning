@@ -30,6 +30,11 @@ VIEW_TSNE = 0;
 %% START >> Load data
 
 inputData = functionLoadInputs(DATASET, BASE_PATH);
+%Normalise attributes feature
+% inputData.attributes = inputData.attributes';
+% inputData.attributes  = inputData.attributes./repmat...
+%     (sum(inputData.attributes ,2),1,size(inputData.attributes ,2));
+% inputData.attributes = inputData.attributes';
 
 %% END >> Load data
 
@@ -112,198 +117,111 @@ end
 
 %% END >> Mapping of attributes
 
-if 0 %VIEW_TSNE
+if VIEW_TSNE
+    
+    funtionVisualiseData(inputData.vggFeatures(:, tempC)', ...
+        labelsTrainingSubsetData, inputData.classNames, inputData.NUMBER_OF_CLASSES, ...
+        'VGG features training');
+    
     %Plot seen and unseen samples
-%     semanticEmbeddingFullData = [semanticEmbeddingsTrain; semanticEmbeddingsTest];
-%     semanticLabelsFullData = [labelsTrainingSubsetData; labelsTestingData];
-%     labelsAsClassNames = functionGetLabelsAsClassNames(inputData.classNames, semanticLabelsFullData);
-%     mappedData = [];
-%     mappedData = funtionTSNEVisualisation(semanticEmbeddingFullData');
-%     figureTitle = sprintf('Seen and Unseen class samples MAPPED');
-%     functionMyScatterPlot(mappedData, labelsAsClassNames', inputData.NUMBER_OF_CLASSES, figureTitle);
-%     labelsAsClassNames = [];
+    funtionVisualiseData([semanticEmbeddingsTrain; semanticEmbeddingsTest], ...
+        [labelsTrainingSubsetData; labelsTestingData], inputData.classNames, inputData.NUMBER_OF_CLASSES, ...
+        'Seen and Unseen class samples MAPPED');
+    
+    % %Prototypes
+    funtionVisualiseData(inputData.attributes', ...
+        [1:inputData.NUMBER_OF_CLASSES], inputData.classNames, inputData.NUMBER_OF_CLASSES, ...
+        'Attributes (prototypes) seen and unseen classes');
     
     %plot seen points
-    semanticEmbeddingTrainSubsetData = semanticEmbeddingsTrain;
-    semanticLabelsTrainSubsetData = labelsTrainingSubsetData;
-    labelsAsClassNames = [];
-    labelsAsClassNames = functionGetLabelsAsClassNames(inputData.classNames, semanticLabelsTrainSubsetData);
-    mappedData = [];
-    mappedData = funtionTSNEVisualisation(semanticEmbeddingTrainSubsetData');
-    figureTitle = sprintf('Seen class samples MAPPED');
-    functionMyScatterPlot(mappedData, labelsAsClassNames', length(trainClassNames), figureTitle);
-    labelsAsClassNames = [];
-
-    %Plot unseen class points
-    semanticEmbeddingTestData = semanticEmbeddingsTest;
-    semanticLabelsTestData = labelsTestingData;
-    labelsAsClassNames = functionGetLabelsAsClassNames(inputData.classNames, semanticLabelsTestData);
-    mappedData = [];
-    mappedData = funtionTSNEVisualisation(semanticEmbeddingTestData');
-    figureTitle = sprintf('Unseen class samples MAPPED');
-    functionMyScatterPlot(mappedData, labelsAsClassNames', length(testClassNames), figureTitle);
-    labelsAsClassNames = [];
+    funtionVisualiseData(semanticEmbeddingsTrain, ...
+        labelsTrainingSubsetData, inputData.classNames, length(trainClassNames), ...
+        'Seen class samples MAPPED');
+    
+    %Plot unseen class points with unseen prototypes
+    unseenPrototypes = inputData.attributes(:, inputData.defaultTestClassLabels);
+    unseenPrototypesLabels = [inputData.NUMBER_OF_CLASSES + 1 : inputData.NUMBER_OF_CLASSES + length(inputData.defaultTestClassLabels)];
+    ext = {'21', '22', '23', '24', '25', '26', '27', '28', '29', '30', '31', '32'};
+    classNamesExtended = [inputData.classNames; ext'];
+    funtionVisualiseData([semanticEmbeddingsTest; unseenPrototypes'], ...
+        [labelsTestingData; unseenPrototypesLabels'], classNamesExtended, 2*length(testClassNames), ...
+        'Embedded Unseen class samples and unseen prototypes');
 end
+
 
 %% Start >> Metric learning
 %Prepare data for stochastic gradient descend
-numberOfSamplesForSGDPerClass = 20;
-attributesMatSubset = [];%zeros(numberOfSamplesForSGDPerClass * length(trainClassNames), size(attributesMat, 2));
-attributesMatSubsetLabels = [];
-
-for p = 1:length(trainClassNames)
-    startI = inputData.numberOfSamplesPerTrainClass * (p - 1) + 1;
-    endI = startI + numberOfSamplesForSGDPerClass - 1;
-    attributesMatSubset = [attributesMatSubset; semanticEmbeddingsTrain(startI:endI, :)];
-    attributesMatSubsetLabels = [attributesMatSubsetLabels; labelsTrainingSubsetData(startI:endI)];
+m = 1;
+for class1 = [1:18]
+    for class2 = [class1+1: 19]
+        for class3 = [class2 + 1: 20]
+        [class1 class2 class3]
+        numberOfSamplesForSGDPerClass = 30;
+        attributesMatSubset = [];%zeros(numberOfSamplesForSGDPerClass * length(trainClassNames), size(attributesMat, 2));
+        attributesMatSubsetLabels = [];
+        tmpTrainClasses = [class1, class2, class3];
+        
+        %Train data for metric learning
+        for p = tmpTrainClasses%length(trainClassNames)
+            startI = inputData.numberOfSamplesPerTrainClass * (p - 1) + 1;
+            endI = startI + numberOfSamplesForSGDPerClass - 1;
+            attributesMatSubset = [attributesMatSubset; semanticEmbeddingsTrain(startI:endI, :)];
+            attributesMatSubsetLabels = [attributesMatSubsetLabels; labelsTrainingSubsetData(startI:endI)];
+        end
+        
+        %Validation Data for metric learning
+        numberOfPerClassSamplesForValidation = inputData.numberOfSamplesPerTrainClass - numberOfSamplesForSGDPerClass;
+        attributesMatValidation = [];
+        attributesMatValidationLabels = [];
+        for p = tmpTrainClasses%length(trainClassNames)
+            startI = inputData.numberOfSamplesPerTrainClass * (p - 1) + 1 + numberOfSamplesForSGDPerClass;
+            endI = startI + numberOfPerClassSamplesForValidation - 1;
+            attributesMatValidation = [attributesMatValidation; semanticEmbeddingsTrain(startI:endI, :)];
+            attributesMatValidationLabels = [attributesMatValidationLabels; labelsTrainingSubsetData(startI:endI)];
+        end
+        
+        metricLearned = functionLearnMetric(attributesMatSubset, attributesMatSubsetLabels, ...
+            numberOfSamplesForSGDPerClass, length(tmpTrainClasses));%;length(trainClassNames));
+        
+        [eigVec eigVal] = eig((metricLearned + metricLearned')/2);
+        
+        
+        if VIEW_TSNE
+            %plot seen points
+            funtionVisualiseData(attributesMatSubset, ...
+                attributesMatSubsetLabels, inputData.classNames, length(trainClassNames), ...
+                'Subset seen class samples MAPPED');
+        end
+        
+        % Start >> Testing
+        %Accuracy on Test Data
+        % accuracyTest = functionGetAccuracyOnDataset(semanticEmbeddingsTest, labelsTestingData, ...
+        %     inputData.defaultTestClassLabels, inputData.attributes, metricLearned)
+        
+        %Accuracy on train data
+        % accuracyTrain = functionGetAccuracyOnDataset(attributesMatSubset, attributesMatSubsetLabels, ...
+        %     defaultTrainClassLabels, inputData.attributes, metricLearned)
+        [accuracyTrain inferedLabels classDistances] = functionGetAccuracyOnDataset(attributesMatSubset, attributesMatSubsetLabels, ...
+            tmpTrainClasses, inputData.attributes, metricLearned);
+        accuracyTrain;
+        inferedLabels';
+        
+        [accuracyValid inferedLabels classDistances] = functionGetAccuracyOnDataset(attributesMatValidation, attributesMatValidationLabels, ...
+            tmpTrainClasses, inputData.attributes, metricLearned);
+        accuracyValid;
+        
+        arrayClassAccu(m, 1) = accuracyTrain;
+        arrayClassAccu(m, 2) = accuracyValid;
+        arrayClassAccu(m, 3) = class1;
+        arrayClassAccu(m, 4) = class2;
+        arrayClassAccu(m, 5) = class3;
+        m = m+1;
+        end
+    end
 end
-metricLearned = functionLearnMetric(attributesMatSubset, attributesMatSubsetLabels, ...
-numberOfSamplesForSGDPerClass, length(trainClassNames));
-  
+
+% End >> Testing
 %% END >> Metric learning
 
-if VIEW_TSNE
-%plot seen points
-    semanticEmbeddings = attributesMatSubset;
-    semanticEmbeddingsLabels = attributesMatSubsetLabels;
-    labelsAsClassNames = [];
-    labelsAsClassNames = functionGetLabelsAsClassNames(inputData.classNames, semanticEmbeddingsLabels);
-    mappedData = [];
-    mappedData = funtionTSNEVisualisation(semanticEmbeddings');
-    figureTitle = sprintf('Subset seen class samples MAPPED');
-    functionMyScatterPlot(mappedData, labelsAsClassNames', length(trainClassNames), figureTitle);
-    labelsAsClassNames = [];
-    
-    metricMappedAttributeSubset = attributesMatSubset * metricLearned;
-    semanticEmbeddings = metricMappedAttributeSubset;
-    semanticEmbeddingsLabels = attributesMatSubsetLabels;
-    labelsAsClassNames = [];
-    labelsAsClassNames = functionGetLabelsAsClassNames(inputData.classNames, semanticEmbeddingsLabels);
-    mappedData = [];
-    mappedData = funtionTSNEVisualisation(semanticEmbeddings');
-    figureTitle = sprintf('Metric mapped Subset seen class samples MAPPED');
-    functionMyScatterPlot(mappedData, labelsAsClassNames', length(trainClassNames), figureTitle);
-    labelsAsClassNames = [];
-    
-end
-
-%% Start >> Testing
-inferedLabels = zeros(length(semanticEmbeddingsTest), 1);
-distanceMat = [];
-for t = 1:size(semanticEmbeddingsTest, 1)
-    p = 1;
-    for class = 1:length(testClassNames)
-        xi = semanticEmbeddingsTest(t, :);
-        xj = inputData.attributes(:, inputData.defaultTestClassLabels(class))';
-        ximxj = xi - xj;
-        classDistances(p) = ximxj * metricLearned * ximxj';
-        p = p + 1;
-    end
-    distanceMat = [distanceMat; classDistances];
-    [minVal index] = min(classDistances);
-    inferedLabels(t, 1) = inputData.defaultTestClassLabels(index);
-end
-
-%Find accuracy 
-accuracy = 100 * sum(labelsTestingData == inferedLabels)/length(inferedLabels)
-%% End >> Testing
 
 
-%% START >> Semantic to semantic mapping
-useKernelisedData = 0;
-mappingG = [];
-b = 1;
-indexOfRemappedSeenPrototypes = [];
-
-for clusterIndex = 1:numberOfClusters
-    allClassesInCluster = find(ssClusteringModel.classClusterAssignment(:, 1) == clusterIndex);
-    trainClassIndex = find(ismember(defaultTrainClassLabels, allClassesInCluster));
-    %testClassIndex = defaultTestClassLabels; %find(ismember(defaultTestClassLabels, allClassesInCluster));
-    trainClassLabels = defaultTrainClassLabels(trainClassIndex);
-    indicesOfTrainClassAttributes = find(ismember(mappedAllAttributeLabels, trainClassLabels));
-    remappSource = mappedAllAttributes(indicesOfTrainClassAttributes, :);
-    remappTarget = attributesMat(indicesOfTrainClassAttributes, :);
-    [reMappedAttributes regressor reMappedSemanticEmbeddingsTest]= functionTrainRegressor(remappSource', ...
-        remappTarget, BASE_PATH, useKernelisedData, [1:size(remappSource, 1)], []);
-    mappingG = [mappingG regressor];
-    reMappedAllAttributesLabels = [];
-    indexOfRemappedSeenPrototypes = [indexOfRemappedSeenPrototypes trainClassLabels];
-    
-    for m = 1:length(trainClassLabels)
-        reMappedAttributesLabels = trainClassLabels(m)*ones(sum(mappedAllAttributeLabels == trainClassLabels(m)), 1);
-        reMappedAllAttributesLabels = [reMappedAllAttributesLabels; reMappedAttributesLabels];
-        startI = (m - 1) * numberOfSamplesPerTrainClass + 1;
-        endI = (m - 1) * numberOfSamplesPerTrainClass + numberOfSamplesPerTrainClass;
-        remappedSeenPrototypes(:, b) = mean(reMappedAttributes(startI:endI, :))';
-        b = b + 1;
-    end
-    
-    if VIEW_TSNE
-        %         funtionTSNEVisualisation([mappedAllAttributes; reMappedAttributes]', ...
-        %             [mappedAllAttributeLabelsVisualisation; reMappedAllAttributesLabels]', tmpClassLabel);
-        labelsAsClassNames = functionGetLabelsAsClassNames(classNames, reMappedAllAttributesLabels);
-        mappedData = [];
-        mappedData = funtionTSNEVisualisation(reMappedAttributes');
-        figureTitle = sprintf('Cluster %d : Seen class samples RE-MAPPED using g%d', clusterIndex, clusterIndex);
-        functionMyScatterPlot(mappedData, labelsAsClassNames', length(trainClassLabels), figureTitle);
-        labelsAsClassNames = [];
-    end
-end
-%%END >> Semantic to semantic mapping
-
-
-%NN
-margins = [];
-test_id = find(ismember(datasetLabels, defaultTestClassLabels));
-for i = 1:length(test_id)
-    diff = repmat(semanticEmbeddingsTest(i, :)', 1, length(defaultTestClassLabels)) - attributes(:, defaultTestClassLabels);
-    nnScores = sum(diff.^2, 1)/sum(sum(diff.^2, 1));
-    %     scoresAcrossClusters =  reshape(targetDomainEmbeddingsTest(:, i, :), length(defaultTrainClassLabels), numberOfClusters)'...
-    %         * histogramsAllClasses(:,defaultTestClassLabels);
-    margins = [margins; max(nnScores, [], 1)];
-end
-%%% classify
-[margin id] = max(margins, [], 2);
-a = (defaultTestClassLabels(id));
-b = datasetLabels(test_id);
-if ~sum(size(a) == size(b))
-    a = a';
-end
-acc = 100*sum(a == b)/length(test_id)
-margins = [];
-meanAcc = mean(acc)
-%NN
-
-if 0
-    %Training
-    validClusterIndex = 1;
-    validClusterIndices = [];
-    histogramsUnseenClasses = functionGetSourceDomainEmbedding(defaultTestClassLabels, defaultTrainClassLabels, attributes);
-    
-    %Testing
-    margins = [];
-    test_id = find(ismember(datasetLabels, defaultTestClassLabels));
-    targetDomainEmbeddingsTest = functionGetTargetDomainEmbedding(test_id, semanticEmbeddingsTest,...
-        numberOfClusters, ssClusteringModel, mappingG, remappedSeenPrototypes, indexOfRemappedSeenPrototypes);
-    
-    for i = 1:length(test_id)
-        scoresAcrossClusters =  targetDomainEmbeddingsTest(:, i)'...
-            * histogramsUnseenClasses(:,defaultTestClassLabels);
-        
-        %     scoresAcrossClusters =  reshape(targetDomainEmbeddingsTest(:, i, :), length(defaultTrainClassLabels), numberOfClusters)'...
-        %         * histogramsAllClasses(:,defaultTestClassLabels);
-        margins = [margins; max(scoresAcrossClusters, [], 1)];
-    end
-    
-    %%% classify
-    [margin id] = max(margins, [], 2);
-    a = (defaultTestClassLabels(id));
-    b = datasetLabels(test_id);
-    if ~sum(size(a) == size(b))
-        a = a';
-    end
-    acc = 100*sum(a == b)/length(test_id)
-    margins = [];
-    meanAcc = mean(acc)
-    %% END >> Testing
-end

@@ -61,9 +61,16 @@ else
     kernel = 0;
 end
 
-temp.SS = sum(inAttributes.^2,2);
-temp.label_k = sqrt(size(inAttributes,2)./temp.SS);
-attributes = double(repmat(temp.label_k, 1, size(inAttributes,2)) .* inAttributes);
+%Note:
+% This type of normalisation is used for Dense traj features (maybe some features negative)
+% temp.SS = sum(inAttributes.^2,2);
+% temp.label_k = sqrt(size(inAttributes,2)./temp.SS);
+% attributes = double(repmat(temp.label_k, 1, size(inAttributes,2)) .* inAttributes);
+attributes = double(inAttributes);
+
+%Note: THis is modified normalisation by dividing by sum of all features of
+%given data point
+%attributes = inAttributes./repmat(sum(inAttributes,2),1,size(inAttributes,2));
 
 % Training Support Vector Regression model for each dimension
 % Parameters:

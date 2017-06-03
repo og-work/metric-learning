@@ -11,7 +11,8 @@ function outM = functionLearnMetric(inData, inLabels, inNumberOfSamplesPerClass,
 
 %Initialisation
 alpha = 0.5;
-lambda = 0.01;
+lambda = 0.001;
+margin = 0.5;
 dataDim = size(inData, 2);
 numberOfDataSamples = size(inData, 1);
 M = eye(dataDim, dataDim);
@@ -20,8 +21,10 @@ distanceMatrix = zeros(numberOfDataSamples, numberOfDataSamples);
 gradientGtTerm1 = zeros(dataDim, dataDim);
 gradientGtTerm2 = gradientGtTerm1;
 g = 1;
-maxIterations = 20;
-
+maxIterations = 30;
+totalLoss = zeros(maxIterations + 1, 1);
+totalLoss(1) = 10;
+arrayLambda(1) = lambda;
 %Gradient first term
 loss1 = 0;
 
@@ -56,7 +59,6 @@ end
 
 blockDiagonalOnesMat = blkdiag(matcell{:});
 temp2Mat = tempAllOneMat - blockDiagonalOnesMat;
-totalLoss = zeros(maxIterations, 1);
 tic
 
 %Gradient descend
@@ -81,7 +83,7 @@ for iteration = 1:maxIterations
     [minValue classKIndices] = min(betweenClassDistanceMat);
     minValueMat = repmat(minValue, length(minValue), 1);
     minValueMat = minValueMat';
-    costMat = distanceMatrix.*blockDiagonalOnesMat + 0.*blockDiagonalOnesMat - blockDiagonalOnesMat.*minValueMat;
+    costMat = distanceMatrix.*blockDiagonalOnesMat + margin*blockDiagonalOnesMat - blockDiagonalOnesMat.*minValueMat;
     costMat = (costMat > 0);
     
     for sampleIndex = 1:size(distanceMatrix, 1)
@@ -94,36 +96,37 @@ for iteration = 1:maxIterations
     loss2 = 0;
     gradientGtTerm2 = gradientGtTerm2 * 0;
     
-    for t = 1:length(indexSetOfIJK)
+    for t = 1:size(indexSetOfIJK, 1)
         i = indexSetOfIJK(t,1); j = indexSetOfIJK(t,2); k = indexSetOfIJK(t,3);
         index1 = (i - 1) * numberOfDataSamples + j;
         index2 = (i - 1) * numberOfDataSamples + k;
         outerProducts = outerProductMatrix{index1} - outerProductMatrix{index2};
         gradientGtTerm2 = gradientGtTerm2 + outerProducts;
-        loss2 = loss2 + trace(M*outerProducts);
-    end
+        loss2 = loss2 + max(trace(M*outerProducts) + margin, 0);
+     end
     
     gradientGt = (1 - alpha) * gradientGtTerm1 + alpha * gradientGtTerm2;
     M = M - lambda * gradientGt;
     tmpM = M;
     M = (M + M')/2;
-    all(eig(M) > 0)
+    all(eig(M) > 0);
     [eigVec eigVal] = eig(M);
-    [V D W] = eig(M);
-    %eigVec = real(eigVec);
-    %eigVal = real(eigVal);
     eigVal(eigVal < 0) = 0;
     M = eigVec * eigVal * eigVec';
-    all(eig(M) > 0)
-    totalLoss(iteration) = (1 - alpha) * loss1 + alpha * loss2; 
-%     increamentalGain = 100*(totalLoss(iteration + 1) - totalLoss(iteration))/totalLoss(iteration + 1);
-%     if increamentalGain < 1
-%         break;
-%     end    
+    all(eig(M) > 0);
+    totalLoss(iteration + 1) = (1 - alpha) * loss1 + alpha * loss2; 
+%     if totalLoss(iteration + 1) - totalLoss(iteration) < 0
+%         lambda = 1.1*lambda;
+%     else
+%         lambda = 0.5*lambda;
+%     end
+%         arrayLambda(iteration + 1) = lambda;
+
+   
 end
 toc
-k = 1;
-figure; plot(totalLoss);
+% figure; plot(totalLoss(2:end));title('Loss')
+% figure;plot(arrayLambda);title('Lambda');
 outM = M;
 
 

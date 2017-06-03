@@ -1,7 +1,7 @@
 function outInputData = functionLoadInputs(inDATASET, inBASE_PATH)
 
 if(strcmp(inDATASET, 'AwA'))
-    outInputData.dataset_path = sprintf('%s/data/code-data/semantic-similarity/precomputed-features-AwA/', inBASE_PATH);
+    dataset_path = sprintf('%s/data/code-data/semantic-similarity/precomputed-features-AwA/', inBASE_PATH);
     %'data/code-data/semantic-similarity/cnn-features
     %temp = load(sprintf('%s/data/code-data/semantic-similarity/cnn-features/AwA/feat-imagenet-vgg-verydeep-19.mat', BASE_PATH));
     temp = load(sprintf('%s/AwA_All_vgg19Features.mat', dataset_path));
@@ -19,6 +19,7 @@ if(strcmp(inDATASET, 'AwA'))
     % from semsnticdemo
     %defaultTestClassLabels = [25 39 15 6 42 14 18 48 34 24];
     outInputData.numberOfSamplesPerTrainClass = 20;%92;%150 apy, 92 AwA
+    outInputData.classNames = {'antelope';'grizzly+bear';'killer+whale';'beaver';'dalmatian';'persian+cat';'horse';'german+shepherd';'blue+whale';'siamese+cat';'skunk';'mole';'tiger';'hippopotamus';'leopard';'moose';'spider+monkey';'humpback+whale';'elephant';'gorilla';'ox';'fox';'sheep';'seal';'chimpanzee';'hamster';'squirrel';'rhinoceros';'rabbit';'bat';'giraffe';'wolf';'chihuahua';'rat';'weasel';'otter';'buffalo';'zebra';'giant+panda';'deer';'bobcat';'pig';'lion';'mouse';'polar+bear';'collie';'walrus';'raccoon';'cow';'dolphin'};
 elseif (strcmp(inDATASET, 'Pascal-Yahoo'))
     dataset_path = sprintf('%s/data/code-data/semantic-similarity/cnn-features/aPY/', inBASE_PATH);
     load(sprintf('%s/class_attributes.mat', dataset_path));
