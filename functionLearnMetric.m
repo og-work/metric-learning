@@ -10,9 +10,9 @@
 function outM = functionLearnMetric(inData, inLabels, inNumberOfSamplesPerClass, inNumberOfClasses)
 
 %Initialisation
-alpha = 0.5;
-lambda = 0.001;
-margin = 0.5;
+alpha = 0.95;
+lambda = 0.01;
+margin = 100;
 dataDim = size(inData, 2);
 numberOfDataSamples = size(inData, 1);
 M = eye(dataDim, dataDim);
@@ -21,7 +21,7 @@ distanceMatrix = zeros(numberOfDataSamples, numberOfDataSamples);
 gradientGtTerm1 = zeros(dataDim, dataDim);
 gradientGtTerm2 = gradientGtTerm1;
 g = 1;
-maxIterations = 30;
+maxIterations = 100;
 totalLoss = zeros(maxIterations + 1, 1);
 totalLoss(1) = 10;
 arrayLambda(1) = lambda;
@@ -125,7 +125,7 @@ for iteration = 1:maxIterations
    
 end
 toc
-% figure; plot(totalLoss(2:end));title('Loss')
+figure; plot(totalLoss(2:end));title('Loss')
 % figure;plot(arrayLambda);title('Lambda');
 outM = M;
 

@@ -60,13 +60,13 @@ else
     Data.D_ts = kernelData(:, inIndicesOfTestingSamples);
     kernel = 0;
 end
+attributes = double(inAttributes);
 
 %Note:
 % This type of normalisation is used for Dense traj features (maybe some features negative)
 % temp.SS = sum(inAttributes.^2,2);
 % temp.label_k = sqrt(size(inAttributes,2)./temp.SS);
 % attributes = double(repmat(temp.label_k, 1, size(inAttributes,2)) .* inAttributes);
-attributes = double(inAttributes);
 
 %Note: THis is modified normalisation by dividing by sum of all features of
 %given data point
@@ -74,19 +74,26 @@ attributes = double(inAttributes);
 
 % Training Support Vector Regression model for each dimension
 % Parameters:
-% -s
-% 0 -- linear: u'*v
-% 1 -- polynomial: (gamma*u'*v + coef0)^degree
-% 2 -- radial basis function: exp(-gamma*|u-v|^2)
-% 3 -- sigmoid: tanh(gamma*u'*v + coef0)
-% 4 -- precomputed kernel (kernel values in training_set_file)
-%TODO: Need to tune Para.C
+% -s svm_type : set type of SVM (default 0)
+% 	0 -- C-SVC		(multi-class classification)
+% 	1 -- nu-SVC		(multi-class classification)
+% 	2 -- one-class SVM	
+% 	3 -- epsilon-SVR	(regression)
+% 	4 -- nu-SVR		(regression)
+% -t kernel_type : set type of kernel function (default 2)
+% 	0 -- linear: u'*v
+% 	1 -- polynomial: (gamma*u'*v + coef0)^degree
+% 	2 -- radial basis function: exp(-gamma*|u-v|^2)
+% 	3 -- sigmoid: tanh(gamma*u'*v + coef0)
+% 	4 -- precomputed kernel (kernel values in training_set_file)
+% -c cost : set the parameter C of C-SVC, epsilon-SVR, and nu-SVR (default 1)
+% -h shrinking : whether to use the shrinking heuristics, 0 or 1 (default 1)
+
+%% TODO: Need to tune Para.C
 %[C gamma] = functionGetParaUsingCrossvalidation(Data.D_tr, attributes, inUseKernelisedData);
 Para.C = 1.5;
-% outSemanticEmbeddingsTest = zeros(size(Data.D_ts, 2), size(attributes, 2));
-% outSemanticEmbeddingsTrain = zeros(size(Data.D_tr, 2), size(attributes, 2));
 model = cell(size(attributes, 2), 1);
-
+%% 
 if inUseKernelisedData
     parfor d = 1:size(attributes, 2)
         tic;
