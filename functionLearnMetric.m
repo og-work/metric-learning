@@ -1,7 +1,7 @@
 % Inputs:
 % *inData: P x Q matrix with P data points each of Q dimension
 % *inLabels: P x 1 matrix containing labels of P data points in inData
-%inNumberOfSamplesPerClassinNumberOfClasses
+% *inNumberOfSamplesPerClassinNumberOfClasses
 % Outputs:
 % *outM: Metric learned which is a matrix of size Q x Q
 
@@ -10,7 +10,7 @@
 function outM = functionLearnMetric(inData, inLabels, inNumberOfSamplesPerClass, inNumberOfClasses)
 
 %Initialisation
-alpha = 0.95;
+alpha = 0.2;
 lambda = 0.01;
 margin = 100;
 dataDim = size(inData, 2);
@@ -21,7 +21,7 @@ distanceMatrix = zeros(numberOfDataSamples, numberOfDataSamples);
 gradientGtTerm1 = zeros(dataDim, dataDim);
 gradientGtTerm2 = gradientGtTerm1;
 g = 1;
-maxIterations = 100;
+maxIterations = 20;
 totalLoss = zeros(maxIterations + 1, 1);
 totalLoss(1) = 10;
 arrayLambda(1) = lambda;
@@ -125,7 +125,7 @@ for iteration = 1:maxIterations
    
 end
 toc
-figure; plot(totalLoss(2:end));title('Loss')
+% figure; plot(totalLoss(2:end));title('Loss')
 % figure;plot(arrayLambda);title('Lambda');
 outM = M;
 

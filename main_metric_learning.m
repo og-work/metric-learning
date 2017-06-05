@@ -7,7 +7,7 @@ clear
 % 2: Windows laptop
 % 3: Linux Desktop
 % 4: Windows Desktop
-SYSTEM_PLATFORM = 1;
+SYSTEM_PLATFORM = 3;
 BASE_PATH = '';
 listDatasets = {'AwA', 'Pascal-Yahoo'};
 DATASET_ID = 1;
@@ -103,9 +103,17 @@ else
 end
 
 %Train regressor
-[semanticEmbeddingsTrain mappingF semanticEmbeddingsTest]= functionTrainRegressor(regressorInputData', ...
-    attributesMat, BASE_PATH, useKernelisedData, indicesOfTrainingSamplesSubset, indicesOfTestingSamples);
-
+if 0
+    [semanticEmbeddingsTrain mappingF semanticEmbeddingsTest]= functionTrainRegressor(regressorInputData', ...
+        attributesMat, BASE_PATH, useKernelisedData, indicesOfTrainingSamplesSubset, indicesOfTestingSamples);
+    regressorData.semanticEmbeddingsTrain = semanticEmbeddingsTrain;
+    regressorData.semanticEmbeddingsTest = semanticEmbeddingsTest;
+    save('regressorData.mat', 'regressorData');
+else
+    regD = load('regressorData.mat');
+    semanticEmbeddingsTrain = regD.regressorData.semanticEmbeddingsTrain;
+    semanticEmbeddingsTest = regD.regressorData.semanticEmbeddingsTest;
+end
 % semanticEmbeddingsTest(semanticEmbeddingsTest < 0) = 0;
 % semanticEmbeddingsTrain(semanticEmbeddingsTrain < 0) = 0;
 
@@ -114,7 +122,7 @@ end
 % distanceMatrix = functionGetDistancesBetweenSamples(semanticEmbeddingsTrain, 'l2');
 % distanceMatrix = pdist2(semanticEmbeddingsTrain, semanticEmbeddingsTrain, 'euclidean');
 
-if VIEW_TSNE    
+if VIEW_TSNE
     funtionVisualiseData(vggFeatures(:, tempC)', ...
         labelsTrainingSubsetData, inputData.classNames, inputData.NUMBER_OF_CLASSES, ...
         'VGG features training');
@@ -152,71 +160,93 @@ m = 1;
 %         for class3 = [class2 + 1: 20]
 
 %Prepare data for stochastic gradient descend
-numberOfSamplesForSGDPerClass = 2
-attributesMatSubset = [];%zeros(numberOfSamplesForSGDPerClass * length(trainClassNames), size(attributesMat, 2));
-attributesMatSubsetLabels = [];
-tmpTrainClasses = [1:20];
+numberOfSamplesForSGDPerClass = 2;
+%tmpTrainClasses = [1:20];
+randomItrMax = 100;
+randomSampleIndices = [randi([1 inputData.numberOfSamplesPerTrainClass], randomItrMax, 1) ...
+    randi([1 inputData.numberOfSamplesPerTrainClass], randomItrMax, 1)];
 
-%Train data for metric learning
-for p = tmpTrainClasses%length(trainClassNames)
-    startI = inputData.numberOfSamplesPerTrainClass * (p - 1) + 1;
-    endI = startI + numberOfSamplesForSGDPerClass - 1;
-    attributesMatSubset = [attributesMatSubset; semanticEmbeddingsTrain(startI:endI, :)];
-    attributesMatSubsetLabels = [attributesMatSubsetLabels; labelsTrainingSubsetData(startI:endI)];
-end
+tic
+handleW = waitbar(0,'Random sampling in progress...');
 
-%Validation Data for metric learning
-numberOfPerClassSamplesForValidation = inputData.numberOfSamplesPerTrainClass - numberOfSamplesForSGDPerClass;
-attributesMatValidation = [];
-attributesMatValidationLabels = [];
+for randSmpleItr = 1:randomItrMax
+    waitbar(randSmpleItr/randomItrMax);
+    attributesMatSubset = [];%zeros(numberOfSamplesForSGDPerClass * length(trainClassNames), size(attributesMat, 2));
+    attributesMatSubsetLabels = [];
 
-for p = tmpTrainClasses%length(trainClassNames)
-    startI = inputData.numberOfSamplesPerTrainClass * (p - 1) + 1 + numberOfSamplesForSGDPerClass;
-    endI = startI + numberOfPerClassSamplesForValidation - 1;
-    attributesMatValidation = [attributesMatValidation; semanticEmbeddingsTrain(startI:endI, :)];
-    attributesMatValidationLabels = [attributesMatValidationLabels; labelsTrainingSubsetData(startI:endI)];
-end
-
-if 0
-    %Use unseen class prototypes
-    unseenProto = [];unseenProtoLabels=[];
-    for h = 1:length(inputData.defaultTestClassLabels)
-        unseenProto = [unseenProto; repmat(attributes(:, inputData.defaultTestClassLabels(h)), 1, numberOfSamplesForSGDPerClass)'];
-        unseenProtoLabels = [unseenProtoLabels; repmat(inputData.defaultTestClassLabels(h), 1, numberOfSamplesForSGDPerClass)'];
+    %Train data for metric learning
+    for p = 1:length(defaultTrainClassLabels) %tmpTrainClasses%
+        startI = inputData.numberOfSamplesPerTrainClass * (p - 1);
+        sampleIndices = startI + randomSampleIndices(randSmpleItr, :);
+        
+        %     indexOfRandomTrainSamplesPerClass = functionGetRandomSamples(numberOfSamplesForSGDPerClass, ...
+        %         inputData.numberOfSamplesPerTrainClass, p);
+        attributesMatSubset = [attributesMatSubset; semanticEmbeddingsTrain(sampleIndices, :)];
+        attributesMatSubsetLabels = [attributesMatSubsetLabels; labelsTrainingSubsetData(sampleIndices)];
     end
     
-    attributesMatSubset = [attributesMatSubset; unseenProto];
-    attributesMatSubsetLabels = [attributesMatSubsetLabels; unseenProtoLabels];
+    %Validation Data for metric learning
+    numberOfPerClassSamplesForValidation = inputData.numberOfSamplesPerTrainClass - numberOfSamplesForSGDPerClass;
+    attributesMatValidation = [];
+    attributesMatValidationLabels = [];
+    
+    for p = 1:length(defaultTrainClassLabels)%length(trainClassNames)
+        startI = inputData.numberOfSamplesPerTrainClass * (p - 1) + 1 + numberOfSamplesForSGDPerClass;
+        endI = startI + numberOfPerClassSamplesForValidation - 1;
+        attributesMatValidation = [attributesMatValidation; semanticEmbeddingsTrain(startI:endI, :)];
+        attributesMatValidationLabels = [attributesMatValidationLabels; labelsTrainingSubsetData(startI:endI)];
+    end
+    
+    if 0
+        %Use unseen class prototypes
+        unseenProto = [];unseenProtoLabels=[];
+        for h = 1:length(inputData.defaultTestClassLabels)
+            unseenProto = [unseenProto; repmat(attributes(:, inputData.defaultTestClassLabels(h)), 1, numberOfSamplesForSGDPerClass)'];
+            unseenProtoLabels = [unseenProtoLabels; repmat(inputData.defaultTestClassLabels(h), 1, numberOfSamplesForSGDPerClass)'];
+        end
+        
+        attributesMatSubset = [attributesMatSubset; unseenProto];
+        attributesMatSubsetLabels = [attributesMatSubsetLabels; unseenProtoLabels];
+    end
+    
+    metricLearned = functionLearnMetric(attributesMatSubset, attributesMatSubsetLabels, ...
+        numberOfSamplesForSGDPerClass, length(trainClassNames));%length(tmpTrainClasses)
+    
+    [eigVec eigVal] = eig((metricLearned + metricLearned')/2);
+    
+    if VIEW_TSNE
+        %plot seen points
+        funtionVisualiseData(attributesMatSubset, ...
+            attributesMatSubsetLabels, inputData.classNames, length(trainClassNames), ...
+            'Subset seen class samples MAPPED');
+    end
+    
+    % Start >> Testing
+    %Accuracy on Test Data
+    accuracyTest = functionGetAccuracyOnDataset(semanticEmbeddingsTest, labelsTestingData, ...
+        [inputData.defaultTestClassLabels], attributes, metricLearned)
+    
+    %Accuracy on train data
+    [accuracyTrain inferedLabels classDistances] = functionGetAccuracyOnDataset(attributesMatSubset, attributesMatSubsetLabels, ...
+        defaultTrainClassLabels, attributes, metricLearned);
+    accuracyTrain
+    inferedLabels';
+    
+    %Accuracy on validation data
+    [accuracyValid inferedLabels classDistances] = functionGetAccuracyOnDataset(attributesMatValidation, attributesMatValidationLabels, ...
+        defaultTrainClassLabels, attributes, metricLearned);
+    accuracyValid
+    
+    arrayClassAccu(m, 1) = accuracyTrain;
+    arrayClassAccu(m, 2) = accuracyValid;
+    arrayClassAccu(m, 3) = accuracyTest;
+    arrayClassAccu(m, 4) = randomSampleIndices(randSmpleItr, 1);
+    arrayClassAccu(m, 5) = randomSampleIndices(randSmpleItr, 2);
+    m = m+1;
+    
 end
-
-metricLearned = functionLearnMetric(attributesMatSubset, attributesMatSubsetLabels, ...
-    numberOfSamplesForSGDPerClass, length(tmpTrainClasses));%;length(trainClassNames));
-
-[eigVec eigVal] = eig((metricLearned + metricLearned')/2);
-
-if VIEW_TSNE
-    %plot seen points
-    funtionVisualiseData(attributesMatSubset, ...
-        attributesMatSubsetLabels, inputData.classNames, length(trainClassNames), ...
-        'Subset seen class samples MAPPED');
-end
-
-% Start >> Testing
-%Accuracy on Test Data
-accuracyTest = functionGetAccuracyOnDataset(semanticEmbeddingsTest, labelsTestingData, ...
-    [inputData.defaultTestClassLabels], attributes, metricLearned)
-
-%Accuracy on train data
-[accuracyTrain inferedLabels classDistances] = functionGetAccuracyOnDataset(attributesMatSubset, attributesMatSubsetLabels, ...
-    tmpTrainClasses, attributes, metricLearned);
-accuracyTrain
-inferedLabels';
-
-%Accuracy on validation data
-[accuracyValid inferedLabels classDistances] = functionGetAccuracyOnDataset(attributesMatValidation, attributesMatValidationLabels, ...
-    tmpTrainClasses, attributes, metricLearned);
-accuracyValid
-
+close(handleW);
+toc
 % distanceMahalanobis = functionGetDistancesBetweenSamples([semanticEmbeddingsTrain; semanticEmbeddingsTest] ...
 %     , 'metric', metricLearned);
 
