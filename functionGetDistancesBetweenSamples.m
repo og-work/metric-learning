@@ -14,23 +14,9 @@
 function outDistanceMatrix = functionGetDistancesBetweenSamples(varargin)
 
 inData1 = varargin{1};
-
-if nargin == 2
-    inDistMetric = varargin{2};
-    inData2 = inData1;
-end
-
-if nargin == 3
-    inData2 = varargin{1};
-    inDistMetric = varargin{2};
-     M = varargin{3};    
-end
-
-if nargin == 4
-    inData2 = varargin{2};
-    inDistMetric = varargin{3};
-    M = varargin{4};
-end
+inData2 = varargin{2};
+inDistMetric = varargin{3};
+M = varargin{4};    
 
 if ~isequal(size(inData1, 2), size(inData2, 2))
     error('Data dimensions not equal')

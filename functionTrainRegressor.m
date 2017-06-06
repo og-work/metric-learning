@@ -90,15 +90,16 @@ attributes = double(inAttributes);
 % -h shrinking : whether to use the shrinking heuristics, 0 or 1 (default 1)
 
 %% TODO: Need to tune Para.C
-%[C gamma] = functionGetParaUsingCrossvalidation(Data.D_tr, attributes, inUseKernelisedData);
-Para.C = 1.5;
+parameterC = 1.5;
+epsilon = 0.1; %default 0.1
+%[parameterC gamma] = functionGetParaUsingCrossvalidation(Data.D_tr, attributes, inUseKernelisedData);
 model = cell(size(attributes, 2), 1);
 %% 
 if inUseKernelisedData
     parfor d = 1:size(attributes, 2)
         tic;
         %If precomputed kernel is used
-        model{d} = svmtrain(attributes(:,d),[(1:size(Data.D_tr,1))' Data.D_tr],sprintf('-s 3 -t %d -c %f -h 0', kernel, Para.C)); % -s 3
+        model{d} = svmtrain(attributes(:,d),[(1:size(Data.D_tr,1))' Data.D_tr],sprintf('-s 3 -t %d -c %f -h 0 -p %f', kernel, parameterC, epsilon)); % -s 3
         outSemanticEmbeddingsTest(:,d) = svmpredict(zeros(size(Data.D_ts,1),1),[(1:size(Data.D_ts,1))' Data.D_ts], model{d});
         outSemanticEmbeddingsTrain(:,d) = svmpredict(zeros(size(Data.D_tr,1),1),[(1:size(Data.D_tr,1))' Data.D_tr], model{d});
         toc;
@@ -108,7 +109,7 @@ else
     parfor d = 1:size(attributes, 2)
         tic;
         %If data is used directly
-        model{d} = svmtrain(attributes(:,d), Data.D_tr', sprintf('-s 3 -t %d -c %f -h 0', kernel, Para.C)); % -s 3
+        model{d} = svmtrain(attributes(:,d), Data.D_tr', sprintf('-s 3 -t %d -c %f -h 0 -p %f', kernel, parameterC, epsilon)); % -s 3
         outSemanticEmbeddingsTrain(:,d) = svmpredict(zeros(size(Data.D_tr,2),1), Data.D_tr', model{d});
         outSemanticEmbeddingsTest(:,d) = svmpredict(zeros(size(Data.D_ts,2),1), Data.D_ts', model{d});        
         toc;
