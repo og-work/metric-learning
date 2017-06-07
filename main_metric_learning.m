@@ -1,33 +1,39 @@
 
 clc;
 clear
-% close all;
+close all;
 
 % 1: Linux Laptop
 % 2: Windows laptop
 % 3: Linux Desktop
 % 4: Windows Desktop
-SYSTEM_PLATFORM = 3;
+SYSTEM_PLATFORM = 1;
 BASE_PATH = '';
 listDatasets = {'AwA', 'Pascal-Yahoo'};
-DATASET_ID = 1;
+DATASET_ID = 2; 
 DATASET = listDatasets{DATASET_ID};
+
 listOfKernelTypes = {'chisq', 'cosine', 'linear', 'rbf', 'rbfchisq'};
-KERNEL_ID = 3;
+KERNEL_ID = 3; 
 kernelType = listOfKernelTypes{KERNEL_ID};
-useKernelisedData = 1;
+
 listNormalisationTypes = {'none', 'l1', 'l2', 'metric'};
-normTypeIndex = 1;
+normTypeIndex = 1; 
 normType = listNormalisationTypes{normTypeIndex};
+
+listSemanticSpace = {'attributes', 'word2vec'};
+SEMANTIC_SPACE_ID = 2;
+semanticSpace = listSemanticSpace{SEMANTIC_SPACE_ID};
+
 %Enable/add required tool boxes
 addPath = 1;
-BASE_PATH = functionEnvSetup(SYSTEM_PLATFORM, addPath);
 VIEW_TSNE = 0;
+useKernelisedData = 1;
+
+BASE_PATH = functionEnvSetup(SYSTEM_PLATFORM, addPath);
 
 %% START >> Load data
-inputData = functionLoadInputs(DATASET, BASE_PATH);
-inputData.numberOfSamplesPerTrainClass = 92;
-
+inputData = functionLoadInputs(DATASET, BASE_PATH, semanticSpace);
 %Normalise attributes feature
 attributes = functionNormaliseData(inputData.attributes', normType);
 vggFeatures =  functionNormaliseData(inputData.vggFeatures', normType);
@@ -87,7 +93,6 @@ for c_tr = 1:length(defaultTrainClassLabels)
     %Prepare attribute matrix which contains attribute vec for each data
     numberOfSamplesOfClass(c_tr) = inputData.numberOfSamplesPerTrainClass;%sum(leaveOutDatasetLabels==defaultTrainClassLabels(c_tr));
     attributesMat = [attributesMat; repmat(attributes(:, defaultTrainClassLabels(c_tr))', numberOfSamplesOfClass(c_tr), 1)];
-    %tr_sample_ind = tr_sample_ind + tr_sample_class_ind;
     labelsTrainingSubsetData = [labelsTrainingSubsetData; defaultTrainClassLabels(c_tr) * ones(numberOfSamplesOfClass(c_tr), 1)];
     col1=[];tmp1=[];
 end
@@ -102,13 +107,13 @@ else
     regressorInputData = vggFeaturesTraining(:, tempC);
 end
 
-%Train regressor
-if 0
+%% Start >> Train regressor
+if 1
     [semanticEmbeddingsTrain mappingF semanticEmbeddingsTest]= functionTrainRegressor(regressorInputData', ...
         attributesMat, BASE_PATH, useKernelisedData, indicesOfTrainingSamplesSubset, indicesOfTestingSamples);
     regressorData.semanticEmbeddingsTrain = semanticEmbeddingsTrain;
     regressorData.semanticEmbeddingsTest = semanticEmbeddingsTest;
-    save('regressorData.mat', 'regressorData');
+    %save('regressorData.mat', 'regressorData');
 else
     regD = load('regressorData.mat');
     semanticEmbeddingsTrain = regD.regressorData.semanticEmbeddingsTrain;
@@ -116,10 +121,19 @@ else
 end
 % semanticEmbeddingsTest(semanticEmbeddingsTest < 0) = 0;
 % semanticEmbeddingsTrain(semanticEmbeddingsTrain < 0) = 0;
+%% END >> train regressor
 
 %% END >> Mapping of attributes
+figure;
+distanceMatrix = funtionPlotConfusionMatrixGetDistanceMatrix(semanticEmbeddingsTrain, attributes(:, defaultTrainClassLabels)', ...
+    labelsTrainingSubsetData, 'l2', [], defaultTrainClassLabels);
+title('Training data');
 
-% distanceMatrix = functionGetDistancesBetweenSamples(semanticEmbeddingsTrain, 'l2');
+figure;
+[distanceMatrixTest perConfusionMatTest]= funtionPlotConfusionMatrixGetDistanceMatrix(semanticEmbeddingsTest, attributes(:, inputData.defaultTestClassLabels)', ...
+    labelsTestingData, 'l2', [], inputData.defaultTestClassLabels);
+title('Without metric learning');
+
 % distanceMatrix = pdist2(semanticEmbeddingsTrain, semanticEmbeddingsTrain, 'euclidean');
 
 if VIEW_TSNE
@@ -155,17 +169,12 @@ end
 %% Start >> Metric learning
 
 m = 1;
-% for class1 = [1:18]
-%     for class2 = [class1+1: 19]
-%         for class3 = [class2 + 1: 20]
-
 %Prepare data for stochastic gradient descend
 numberOfSamplesForSGDPerClass = 2;
 %tmpTrainClasses = [1:20];
-randomItrMax = 100;
+randomItrMax = 20;
 randomSampleIndices = [randi([1 inputData.numberOfSamplesPerTrainClass], randomItrMax, 1) ...
     randi([1 inputData.numberOfSamplesPerTrainClass], randomItrMax, 1)];
-
 tic
 handleW = waitbar(0,'Random sampling in progress...');
 
@@ -173,7 +182,7 @@ for randSmpleItr = 1:randomItrMax
     waitbar(randSmpleItr/randomItrMax);
     attributesMatSubset = [];%zeros(numberOfSamplesForSGDPerClass * length(trainClassNames), size(attributesMat, 2));
     attributesMatSubsetLabels = [];
-
+    
     %Train data for metric learning
     for p = 1:length(defaultTrainClassLabels) %tmpTrainClasses%
         startI = inputData.numberOfSamplesPerTrainClass * (p - 1);
@@ -223,20 +232,32 @@ for randSmpleItr = 1:randomItrMax
     
     % Start >> Testing
     %Accuracy on Test Data
-    accuracyTest = functionGetAccuracyOnDataset(semanticEmbeddingsTest, labelsTestingData, ...
-        [inputData.defaultTestClassLabels], attributes, metricLearned)
+    [accuracyTest inferedLabels classDistances] = functionGetAccuracyOnDataset(semanticEmbeddingsTest, labelsTestingData, ...
+        [inputData.defaultTestClassLabels], attributes, metricLearned);
+    confusionMatTest = confusionmat(labelsTestingData, inferedLabels);
+    inferedLabels = [];
+    
+    figure;
+    [distanceMatrixTest perConfusionMatTestAfterML]= funtionPlotConfusionMatrixGetDistanceMatrix(semanticEmbeddingsTest, attributes(:, inputData.defaultTestClassLabels)', ...
+        labelsTestingData, 'metric', metricLearned, inputData.defaultTestClassLabels);
+    title('With metric learning');
     
     %Accuracy on train data
     [accuracyTrain inferedLabels classDistances] = functionGetAccuracyOnDataset(attributesMatSubset, attributesMatSubsetLabels, ...
         defaultTrainClassLabels, attributes, metricLearned);
     accuracyTrain
     inferedLabels';
+    confusionMatTrain = confusionmat(attributesMatSubsetLabels, inferedLabels);
+    inferedLabels = [];
+    
     
     %Accuracy on validation data
     [accuracyValid inferedLabels classDistances] = functionGetAccuracyOnDataset(attributesMatValidation, attributesMatValidationLabels, ...
         defaultTrainClassLabels, attributes, metricLearned);
     accuracyValid
+    confusionMatValid = confusionmat(attributesMatValidationLabels, inferedLabels);
     
+    pause(2)
     arrayClassAccu(m, 1) = accuracyTrain;
     arrayClassAccu(m, 2) = accuracyValid;
     arrayClassAccu(m, 3) = accuracyTest;
@@ -247,23 +268,12 @@ for randSmpleItr = 1:randomItrMax
 end
 close(handleW);
 toc
+mean(arrayClassAccu)
 % distanceMahalanobis = functionGetDistancesBetweenSamples([semanticEmbeddingsTrain; semanticEmbeddingsTest] ...
 %     , 'metric', metricLearned);
 
 % distanceMahalanobis = functionGetDistancesBetweenSamples(semanticEmbeddingsTest, ...
 %     attributes(:, inputData.defaultTestClassLabels)', 'metric', metricLearned);
-
-%         arrayClassAccu(m, 1) = accuracyTrain;
-%         arrayClassAccu(m, 2) = accuracyValid;
-%         arrayClassAccu(m, 3) = class1;
-%         arrayClassAccu(m, 4) = class2;
-%         arrayClassAccu(m, 5) = class3;
-%         m = m+1;
-%         end
-%     end
-% end
-
-% End >> Testing
 %% END >> Metric learning
 
 
