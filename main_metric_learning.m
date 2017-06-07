@@ -10,7 +10,7 @@ close all;
 SYSTEM_PLATFORM = 1;
 BASE_PATH = '';
 listDatasets = {'AwA', 'Pascal-Yahoo'};
-DATASET_ID = 2; 
+DATASET_ID = 1; 
 DATASET = listDatasets{DATASET_ID};
 
 listOfKernelTypes = {'chisq', 'cosine', 'linear', 'rbf', 'rbfchisq'};
@@ -22,7 +22,7 @@ normTypeIndex = 1;
 normType = listNormalisationTypes{normTypeIndex};
 
 listSemanticSpace = {'attributes', 'word2vec'};
-SEMANTIC_SPACE_ID = 2;
+SEMANTIC_SPACE_ID = 1;
 semanticSpace = listSemanticSpace{SEMANTIC_SPACE_ID};
 
 %Enable/add required tool boxes
