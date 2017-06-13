@@ -14,7 +14,7 @@ DATASET_ID = 2;
 DATASET = listDatasets{DATASET_ID};
 
 listOfKernelTypes = {'chisq', 'cosine', 'linear', 'rbf', 'rbfchisq'};
-KERNEL_ID = 5;
+KERNEL_ID = 3;
 kernelType = listOfKernelTypes{KERNEL_ID};
 
 listNormalisationTypes = {'none', 'l1', 'l2', 'metric'};
@@ -108,7 +108,7 @@ else
 end
 
 %% Start >> Train regressor
-if 0
+if 1
     [semanticEmbeddingsTrain mappingF semanticEmbeddingsTest]= functionTrainRegressor(regressorInputData', ...
         attributesMat, BASE_PATH, useKernelisedData, indicesOfTrainingSamplesSubset, indicesOfTestingSamples);
     regressorData.semanticEmbeddingsTrain = semanticEmbeddingsTrain;
@@ -142,7 +142,7 @@ end
 %Accuracy on Test Data
 [accuracyTestWithoutML inferedLabels classDistances] = functionGetAccuracyOnDataset(semanticEmbeddingsTest, labelsTestingData, ...
     [inputData.defaultTestClassLabels], attributes, eye(size(semanticEmbeddingsTest, 2)));
-confusionMatTest = confusionmat(labelsTestingData, inferedLabels);
+% = confusionmat(labelsTestingData, inferedLabels);
 accuracyTestWithoutML
 inferedLabels = [];classDistances = [];
 
@@ -179,8 +179,23 @@ if VIEW_TSNE
 end
 
 %% Start >> Metric learning
+indices = 1:ceil(0.7*length(defaultTrainClassLabels));
+trainClasses = defaultTrainClassLabels(indices);
+heldOutSeenClasses = defaultTrainClassLabels(indices(length(indices)) + 1: length(defaultTrainClassLabels));
 
-m = 1;
+%Validation Data for metric learning
+%numberOfPerClassSamplesForValidation = inputData.numberOfSamplesPerTrainClass - numberOfSamplesForSGDPerClass;
+numberOfPerClassSamplesForValidation = inputData.numberOfSamplesPerTrainClass;
+attributesMatValidation = [];
+attributesMatValidationLabels = [];
+
+for p = heldOutSeenClasses%length(defaultTrainClassLabels)%length(trainClassNames)
+    startI = inputData.numberOfSamplesPerTrainClass * (p - 1) + 1;
+    endI = startI + numberOfPerClassSamplesForValidation - 1;
+    attributesMatValidation = [attributesMatValidation; semanticEmbeddingsTrain(startI:endI, :)];
+    attributesMatValidationLabels = [attributesMatValidationLabels; labelsTrainingSubsetData(startI:endI)];
+end
+    
 %Prepare data for stochastic gradient descend
 numberOfSamplesForSGDPerClass = 1;
 randomItrMax = 1;
@@ -210,20 +225,12 @@ for randSmpleItr = 1:randomItrMax
     %     end
     
     %Use only seen class prototypes for metric learning
-    attributesMatSubset = attributes(:, defaultTrainClassLabels)';
-    attributesMatSubsetLabels = defaultTrainClassLabels';
+    attributesMatSubset = attributes(:, trainClasses)';
+    attributesMatSubsetLabels = trainClasses';%defaultTrainClassLabels';
     
-    %Validation Data for metric learning
-    numberOfPerClassSamplesForValidation = inputData.numberOfSamplesPerTrainClass - numberOfSamplesForSGDPerClass;
-    attributesMatValidation = [];
-    attributesMatValidationLabels = [];
-    
-    for p = 1:length(defaultTrainClassLabels)%length(trainClassNames)
-        startI = inputData.numberOfSamplesPerTrainClass * (p - 1) + 1 + numberOfSamplesForSGDPerClass;
-        endI = startI + numberOfPerClassSamplesForValidation - 1;
-        attributesMatValidation = [attributesMatValidation; semanticEmbeddingsTrain(startI:endI, :)];
-        attributesMatValidationLabels = [attributesMatValidationLabels; labelsTrainingSubsetData(startI:endI)];
-    end
+    %Use seen and unseen class prototypes
+%     attributesMatSubset = attributes';
+%     attributesMatSubsetLabels = [defaultTrainClassLabels inputData.defaultTestClassLabels]';
     
     if 0
         %Use unseen class prototypes
@@ -241,10 +248,10 @@ for randSmpleItr = 1:randomItrMax
     inputDataMetricLearn.data = attributesMatSubset;
     inputDataMetricLearn.labels = attributesMatSubsetLabels;
     inputDataMetricLearn.numberOfSamplesPerClass = numberOfSamplesForSGDPerClass;
-    inputDataMetricLearn.numberOfClasses = length(trainClassNames);%length(tmpTrainClasses)
-    lambdaArray = 0.1:0.1:2;
-    marginArray = 1:50:1000;
-    maxIterationsArray = 50:25:500;
+    inputDataMetricLearn.numberOfClasses = length(trainClasses);
+    lambdaArray = 0.1:0.2:2;
+    marginArray = 1:100:1000;
+    maxIterationsArray = 100:100:500;
     maxCount = length(lambdaArray)*length(marginArray)*length(maxIterationsArray);
     loss = {};
     metricLearned = {};
@@ -274,21 +281,21 @@ for randSmpleItr = 1:randomItrMax
                 
                 %Accuracy on train data
                 [accuracyTrain inferedLabels classDistances] = functionGetAccuracyOnDataset(attributesMatSubset, attributesMatSubsetLabels, ...
-                    defaultTrainClassLabels, attributes, outMLData.metricLearned);
+                    trainClasses, attributes, outMLData.metricLearned);
                 accuracyTrain;
-                confusionMatTrain = confusionmat(attributesMatSubsetLabels, inferedLabels);
+                %confusionMatTrain = confusionmat(attributesMatSubsetLabels, inferedLabels);
                 inferedLabels = [];
                 
                 %Accuracy on validation data
                 [accuracyValid inferedLabels classDistances] = functionGetAccuracyOnDataset(attributesMatValidation, attributesMatValidationLabels, ...
-                    defaultTrainClassLabels, attributes, outMLData.metricLearned);
+                    heldOutSeenClasses, attributes, outMLData.metricLearned);
                 accuracyValid;
-                confusionMatValid = confusionmat(attributesMatValidationLabels, inferedLabels);
+                %confusionMatValid = confusionmat(attributesMatValidationLabels, inferedLabels);
                 
                 %Accuracy on Test Data
                 [accuracyTest inferedLabels classDistances] = functionGetAccuracyOnDataset(semanticEmbeddingsTest, labelsTestingData, ...
                     [inputData.defaultTestClassLabels], attributes, outMLData.metricLearned);
-                confusionMatTest = confusionmat(labelsTestingData, inferedLabels);
+                %confusionMatTest = confusionmat(labelsTestingData, inferedLabels);
                 inferedLabels = [];
                 accuracyTest;
                 

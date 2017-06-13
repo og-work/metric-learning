@@ -81,7 +81,7 @@ tic
 %Gradient descend
 for iteration = 1:maxIterations
     if (rem(iteration, 10) == 0) 
-        iteration 
+        iteration; 
     end 
     costM = [];
     distanceMatrix = 0* distanceMatrix;
