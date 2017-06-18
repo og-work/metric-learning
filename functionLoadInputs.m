@@ -40,8 +40,8 @@ elseif (strcmp(inDATASET, 'Pascal-Yahoo'))
     
     clear tmp;
     outInputData.NUMBER_OF_CLASSES = 32;
-    outInputData.defaultTestClassLabels = [21:32];
-    outInputData.numberOfSamplesPerTrainClass = 150; %150 apy, 92 AwA
+    outInputData.defaultTestClassLabels = [15:20];
+    outInputData.numberOfSamplesPerTrainClass = 51%150; %150 apy, 92 AwA
     outInputData.classNames = {'1 aeroplane', '2 bicycle', '3 bird', '4 boat', '5 bottle', '6 bus', '7 car', '8 cat', ...
         '9 chair','10 cow','11 diningtable','12 dog','13 horse','14 motorbike','15 person','16 pottedplant','17 sheep',...
         '18 sofa','19 train','20 tvmonitor','21 donkey','22 monkey','23 goat','24 wolf','25 jetski','26 zebra','27 centaur','28 mug',...

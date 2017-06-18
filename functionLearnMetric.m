@@ -10,16 +10,16 @@
 function outputData = functionLearnMetric(inputData)
 
 inData = inputData.data;
+inNormalisedData = inputData.normalisedData; % Only for debug
 inLabels = inputData.labels;
 inNumberOfSamplesPerClass = inputData.numberOfSamplesPerClass;
 inNumberOfClasses = inputData.numberOfClasses;
 lambda = inputData.lambda;
 margin = inputData.margin;
 maxIterations = inputData.maxIterations;
-
-FAST = 1;
+FAST = 0;
 %Initialisation
-alpha = 1; %alpha = 1 removes intra class penalty term
+alpha = 0.5; %alpha = 1 removes intra class penalty term
 
 
 dataDim = size(inData, 2);
@@ -35,21 +35,8 @@ totalLoss(1) = 10;
 arrayLambda(1) = lambda;
 %Gradient first term
 loss1 = 0;
-
-for classI = 1: inNumberOfClasses
-    indexI = (classI - 1)*inNumberOfSamplesPerClass + 1;
-    indexJ = indexI + inNumberOfSamplesPerClass - 1;
-    for k = indexI:indexJ - 1
-        for p = k + 1: indexJ
-            Xij = (inData(k, :) - inData(p, :))' * (inData(k, :) - inData(p, :));
-            gradientGtTerm1 = gradientGtTerm1 + Xij;
-            loss1 = loss1 + trace(M*Xij);
-            tmpVar(g, 1) = k; tmpVar(g, 2) = p; g = g + 1;
-        end
-    end
-end
-
 k = 1;
+
 %TODO: Only find upper/lower diagonal elements
 if FAST
     for row = 1:numberOfDataSamples
@@ -62,6 +49,7 @@ else
     for row = 1:numberOfDataSamples
         for col = 1:numberOfDataSamples
             outerProductMatrix{k} = (inData(row, :) - inData(col, :))' * (inData(row, :) - inData(col, :));
+            indicesOuterProduct(k, :) = [row col k];
             k = k + 1;
         end
     end
@@ -78,11 +66,35 @@ blockDiagonalOnesMat = blkdiag(matcell{:});
 temp2Mat = tempAllOneMat - blockDiagonalOnesMat;
 tic
 
+
+    
 %Gradient descend
 for iteration = 1:maxIterations
-    if (rem(iteration, 10) == 0) 
-        iteration; 
-    end 
+    if (rem(iteration, 10) == 0)
+        iteration
+    end
+    loss1 = 0;
+    
+    %Gradient term 1 and loss term1
+    gradientGtTerm1 = gradientGtTerm1 * 0;
+    for classI = 1: inNumberOfClasses
+        indexI = (classI - 1)*inNumberOfSamplesPerClass + 1;
+        indexJ = indexI + inNumberOfSamplesPerClass - 1;
+        for k = indexI:indexJ - 1
+            for p = k + 1: indexJ
+                Xij = (inData(k, :) - inData(p, :))' * (inData(k, :) - inData(p, :));
+                gradientGtTerm1 = gradientGtTerm1 + Xij;
+                if  trace(M*Xij) < 0
+                    error('Something wrong...distance cant be negative');
+                end
+                loss1 = loss1 + trace(M*Xij);
+                tmpVar(g, 1) = k; tmpVar(g, 2) = p; g = g + 1;
+            end
+        end
+    end
+    
+    
+    
     costM = [];
     distanceMatrix = 0* distanceMatrix;
     %Find the distance matrix
@@ -108,10 +120,11 @@ for iteration = 1:maxIterations
         distanceMatrix = distanceMatrix + distanceMatrix';
     end
     
+    maxVal = max(max(distanceMatrix));
     betweenClassDistanceMat = distanceMatrix.*temp2Mat;
-    blockDiagonalOnesMat = 10^5*blockDiagonalOnesMat;
+    blockDiagonalOnesMat = (ceil(maxVal + 1))*blockDiagonalOnesMat;
     betweenClassDistanceMat = betweenClassDistanceMat + blockDiagonalOnesMat;
-    blockDiagonalOnesMat = blockDiagonalOnesMat / 10^5;
+    blockDiagonalOnesMat = blockDiagonalOnesMat / (ceil(maxVal + 1));
     
     [minValue classKIndices] = min(betweenClassDistanceMat');
     minValueMat = repmat(minValue, length(minValue), 1);
@@ -121,7 +134,7 @@ for iteration = 1:maxIterations
     
     indices = [];
     indexSetOfIJK = [];
-
+    
     for sampleIndex = 1:size(distanceMatrix, 1)
         indices = find(costMat(sampleIndex, :));
         ijkTouple = [sampleIndex * ones(1, length(indices)); indices; classKIndices(sampleIndex) * ones(1, length(indices))];
@@ -141,7 +154,7 @@ for iteration = 1:maxIterations
             %Swap i and j
             if (i > j)
                 tmpVar = i; i = j; j = tmpVar;
-            end            
+            end
             index1 = (i - 1) * numberOfDataSamples + j - sum(0: i - 1);
         else
             
@@ -158,11 +171,13 @@ for iteration = 1:maxIterations
         else
             index2 = (i - 1) * numberOfDataSamples + k;
         end
-        
+        %NOTE***** sign is changed to negative. Original paper positive.
         outerProducts = outerProductMatrix{index1} - outerProductMatrix{index2};
+        %NOTE***** sign is changed to negative. Original paper positive.
         gradientGtTerm2 = gradientGtTerm2 + outerProducts;
+        %NOTE***** sign is changed to negative. Original paper positive.
         loss2 = loss2 + max(trace(M*outerProducts) + margin, 0);
-        
+        %loss2 = loss2 + trace(M*outerProducts);        
     end
     
     gradientGt = (1 - alpha) * gradientGtTerm1 + alpha * gradientGtTerm2;
@@ -172,25 +187,27 @@ for iteration = 1:maxIterations
     all(eig(M) > 0);
     [eigVec eigVal] = eig(M);
     eigVal(eigVal < 0) = 0;
-    M = eigVec * eigVal * eigVec';
-    all(eig(M) > 0);
+    M = eigVec * eigVal * inv(eigVec);
+    %M1 = eigVec * eigVal * (eigVec)';
+    all(eig(M) >= 0);
+    sprintf('Number of non-zero eigen values %d outof %d', nnz(eigVal), size(eigVal, 1))
     totalLoss(iteration + 1) = (1 - alpha) * loss1 + alpha * loss2;
     %     if totalLoss(iteration + 1) - totalLoss(iteration) < 0
     %         lambda = 1.1*lambda;
     %     else
     %         lambda = 0.5*lambda;
     %     end
-    %         arrayLambda(iteration + 1) = lambda;
-    
-    
+    %         arrayLambda(iteration + 1) = lambda; 
+    arrayM{iteration} = M;
 end
 toc
-% figure; plot(totalLoss(2:end));title('Loss')
+figure; plot(totalLoss(2:end));title('Loss')
 % figure;plot(arrayLambda);title('Lambda');
 %save('metric-var-fast-itr1.mat');
 
 outputData.metricLearned = M;
 outputData.totalLoss = totalLoss;
+outputData.arrayM = arrayM;
 
 
 

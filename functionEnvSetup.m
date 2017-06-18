@@ -2,7 +2,7 @@ function BASE_PATH = functionSemantic_similaity_env_setup(SYSTEM_PLATFORM, addPa
 %% START >> Select platform
 if SYSTEM_PLATFORM == 1
     %For linux laptop
-    BASE_PATH = '/home/omy/Documents/omkar-server-backup-20feb2017/Documents/study/phd-research/';
+    BASE_PATH = '/media/omkar/windows-D-drive/study/phd-research/';
     if addPath
         addpath(genpath(sprintf('%s/codes/third-party-softwares/ocas/libocas_v097/', BASE_PATH)));disp('Enabling ocas/libocas_v097');        
         addpath(genpath(sprintf('%s/codes/third-party-softwares-codes/svm/liblinear', BASE_PATH)));disp('Enabling ocas/liblinear');        
