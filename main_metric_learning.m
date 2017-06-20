@@ -7,7 +7,7 @@ close all;
 % 2: Windows laptop
 % 3: Linux Desktop
 % 4: Windows Desktop
-SYSTEM_PLATFORM = 1;
+SYSTEM_PLATFORM = 3;
 BASE_PATH = '';
 listDatasets = {'AwA', 'Pascal-Yahoo'};
 DATASET_ID = 2;
@@ -108,14 +108,14 @@ else
 end
 
 %% Train regressor
-if 0
+if 1
     [semanticEmbeddingsTrain mappingF semanticEmbeddingsTest]= functionTrainRegressor(regressorInputData', ...
         attributesMat, BASE_PATH, useKernelisedData, indicesOfTrainingSamplesSubset, indicesOfTestingSamples);
     regressorData.semanticEmbeddingsTrain = semanticEmbeddingsTrain;
     regressorData.semanticEmbeddingsTest = semanticEmbeddingsTest;
-    save(sprintf('%s-regressor-vgg-%s-%s.mat', DATASET, semanticSpace, kernelType), 'regressorData');
+    save(sprintf('data/%s-regressor-vgg-%s-%s.mat', DATASET, semanticSpace, kernelType), 'regressorData');
 else
-    regD = load(sprintf('%s-regressor-vgg-%s-%s.mat', DATASET, semanticSpace, kernelType));
+    regD = load(sprintf('data/%s-regressor-vgg-%s-%s.mat', DATASET, semanticSpace, kernelType));
     semanticEmbeddingsTrain = regD.regressorData.semanticEmbeddingsTrain;
     semanticEmbeddingsTest = regD.regressorData.semanticEmbeddingsTest;
 end
@@ -140,7 +140,7 @@ accuracyTestWithoutML
 inferedLabels = [];classDistances = [];
 % distanceMatrix = pdist2(semanticEmbeddingsTrain, semanticEmbeddingsTrain, 'euclidean');
 
-%% tSNE visualisation 
+%% tSNE visualisation
 if VIEW_TSNE
     funtionVisualiseData(vggFeatures(:, tempC)', ...
         labelsTrainingSubsetData, inputData.classNames, inputData.NUMBER_OF_CLASSES, ...
@@ -171,7 +171,7 @@ if VIEW_TSNE
         'Embedded Unseen class samples and unseen prototypes');
 end
 
-%% Start >> Metric learning
+%% Start >> Metric learning using held out classes
 numberOfNonHeldOutClasses = ceil(0.8*length(defaultTrainClassLabels));
 indices = randperm(length(defaultTrainClassLabels), numberOfNonHeldOutClasses);
 trainClassesNonHeldOut = defaultTrainClassLabels(indices);
@@ -194,42 +194,42 @@ for p = trainClaasesheldOut%length(defaultTrainClassLabels)%length(trainClassNam
     attributesMatValidation = [attributesMatValidation; semanticEmbeddingsTrain(startI:endI, :)];
     attributesMatValidationLabels = [attributesMatValidationLabels; labelsTrainingSubsetData(startI:endI)];
 end
-    
+
 %Prepare data for stochastic gradient descend
-numberOfSamplesForSGDPerClass = 1;
+numberOfSamplesForSGDPerClass = 5;
 randomItrMax = 1;
 randomSampleIndices = [];
 
-%Generate tuples of random samples
-% for b = 1:numberOfSamplesForSGDPerClass
-%     randomSampleIndices(:, b) = randi([1 inputData.numberOfSamplesPerTrainClass], randomItrMax, 1);
-% end
+% Generate tuples of random samples
+for b = 1:randomItrMax
+    %randomSampleIndices(:, b) = randi([1 inputData.numberOfSamplesPerTrainClass], randomItrMax, 1);
+    randomSampleIndices(b, :)  = randperm(inputData.numberOfSamplesPerTrainClass, numberOfSamplesForSGDPerClass);
+end
 
-%randomSampleIndices = [1 2];
 tic
-handleW = waitbar(0,'Random sampling in progress...');
+% handleW = waitbar(0,'Random sampling in progress...');
 arrayClassAccu = [];
 
-for randSmpleItr = 1:randomItrMax
-    
+for randSmpleItr = 1:randomItrMax    
     attributesMatSubset = [];%zeros(numberOfSamplesForSGDPerClass * length(trainClassNames), size(attributesMat, 2));
     attributesMatSubsetLabels = [];
     
     %Train data for metric learning
-    %     for p = 1:length(defaultTrainClassLabels) %tmpTrainClasses%
-    %         startI = inputData.numberOfSamplesPerTrainClass * (p - 1);
-    %         sampleIndices = startI + randomSampleIndices(randSmpleItr, :);
-    %         attributesMatSubset = [attributesMatSubset; semanticEmbeddingsTrain(sampleIndices, :)];
-    %         attributesMatSubsetLabels = [attributesMatSubsetLabels; labelsTrainingSubsetData(sampleIndices)];
-    %     end
+    for p = trainClassesNonHeldOut
+        classIn = find(defaultTrainClassLabels == p);
+        startI = inputData.numberOfSamplesPerTrainClass * (classIn - 1);
+        sampleIndices = startI + randomSampleIndices(randSmpleItr, :);
+        attributesMatSubset = [attributesMatSubset; semanticEmbeddingsTrain(sampleIndices, :)];
+        attributesMatSubsetLabels = [attributesMatSubsetLabels; labelsTrainingSubsetData(sampleIndices)];
+    end
     
     %Use only seen class prototypes for metric learning
-    attributesMatSubset = attributes(:, trainClassesNonHeldOut)';
-    attributesMatSubsetLabels = trainClassesNonHeldOut';%defaultTrainClassLabels';
+    %     attributesMatSubset = attributes(:, trainClassesNonHeldOut)';
+    %     attributesMatSubsetLabels = trainClassesNonHeldOut';%defaultTrainClassLabels';
     
     %Use seen and unseen class prototypes
-%     attributesMatSubset = attributes';
-%     attributesMatSubsetLabels = [defaultTrainClassLabels inputData.defaultTestClassLabels]';
+    %     attributesMatSubset = attributes';
+    %     attributesMatSubsetLabels = [defaultTrainClassLabels inputData.defaultTestClassLabels]';
     
     if 0
         %Use unseen class prototypes
@@ -248,18 +248,19 @@ for randSmpleItr = 1:randomItrMax
     inputDataMetricLearn.labels = attributesMatSubsetLabels;
     inputDataMetricLearn.numberOfSamplesPerClass = numberOfSamplesForSGDPerClass;
     inputDataMetricLearn.numberOfClasses = length(trainClassesNonHeldOut);
-    lambdaArray = 0.1:0.2:2;
-    marginArray = 1:100:1000;
-    maxIterationsArray = 100:100:500;
+    inputDataMetricLearn.trainClasses = trainClassesNonHeldOut;%defaultTrainClassLabels;
+    lambdaArray = 0.001:0.2:2;
+    marginArray = 50:30:1000;
+    maxIterationsArray = 150;
     maxCount = length(lambdaArray)*length(marginArray)*length(maxIterationsArray);
     loss = {};
     metricLearned = {};
     m = 1;
     
     for lambda = lambdaArray
-        for margin = marginArray
+        for margin = 10%marginArray
             for maxIterations = maxIterationsArray
-                waitbar(m/maxCount);
+%                 waitbar(m/maxCount);
                 inputDataMetricLearn.lambda = lambda;
                 inputDataMetricLearn.margin = margin;
                 inputDataMetricLearn.maxIterations = maxIterations;
@@ -316,21 +317,34 @@ for randSmpleItr = 1:randomItrMax
     end
 end
 
-close(handleW);
+% close(handleW);
 toc
 mean(arrayClassAccu)
-%% END >> Metric learning
 
 %% Test
 [val ind] = max(arrayClassAccu(:, 2));
 inputDataMetricLearn.lambda = arrayClassAccu(ind, 4);
 inputDataMetricLearn.margin = arrayClassAccu(ind, 5);
 inputDataMetricLearn.maxIterations = arrayClassAccu(ind, 6);
-%Prepare data for metric learning
-inputDataMetricLearn.data = attributes(:, defaultTrainClassLabels)';
-inputDataMetricLearn.labels = defaultTrainClassLabels;
-inputDataMetricLearn.numberOfSamplesPerClass = 1;
+inputDataMetricLearn.numberOfSamplesPerClass = numberOfSamplesForSGDPerClass;
 inputDataMetricLearn.numberOfClasses = length(defaultTrainClassLabels);
+inputDataMetricLearn.trainClasses = defaultTrainClassLabels;
+
+
+%Prepare data for metric learning
+attributesMatSubset = [];
+attributesMatSubsetLabels = [];
+
+for p = defaultTrainClassLabels
+        classIn = find(defaultTrainClassLabels == p);
+        startI = inputData.numberOfSamplesPerTrainClass * (classIn - 1);
+        sampleIndices = startI + [1:inputDataMetricLearn.numberOfSamplesPerClass];
+        attributesMatSubset = [attributesMatSubset; semanticEmbeddingsTrain(sampleIndices, :)];
+        attributesMatSubsetLabels = [attributesMatSubsetLabels; labelsTrainingSubsetData(sampleIndices)];
+end
+    
+inputDataMetricLearn.data = attributesMatSubset;
+inputDataMetricLearn.labels = attributesMatSubsetLabels;
 outMLData = functionLearnMetric(inputDataMetricLearn);
 
 %Accuracy on Test Data

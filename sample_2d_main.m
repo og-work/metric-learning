@@ -1,11 +1,11 @@
 % Sample program to check top push metric learning on 2D data
 
-close all
+% close all
 clear;
 %% Generate synthetic data
-inputDataGen.numberOfClasses = 20;
+inputDataGen.numberOfClasses = 12;
 inputDataGen.dataDimension = 2;
-inputDataGen.numberOfSamplesPerClass = 10;
+inputDataGen.numberOfSamplesPerClass = 5;
 data2D = functionGenerated2DData(inputDataGen);
 
 %% Plot data
@@ -34,34 +34,46 @@ inDataML.numberOfClasses = inputDataGen.numberOfClasses;
 
 %Metric learning
 for lambda = lambdaArray
-    for margin = 10%marginArray
+    for margin = marginArray
         for maxIterations = maxIterationsArray
-            inDataML.lambda = lambda;
+            inDataML.lambda = 0.001;%lambda;
             inDataML.margin = 100;%margin;
-            inDataML.maxIterations = maxIterations;
+            inDataML.maxIterations = 100;%maxIterations;
             inDataML.normalisedData = normalisedData; % Only for debug
-            outputDataML = functionLearnMetric(inDataML);
-            % Transform data from learned metric
-            dataTransformed = functionTransformPoints(data2D.data, data2D.labels, outputDataML.metricLearned);
-            [maxV maxI] = max(dataTransformed.data);
-            [minV minI] = min(dataTransformed.data);
-            minMat = repmat(minV, size(dataTransformed.data, 1), 1);
-            maxMat = repmat(maxV, size(dataTransformed.data, 1), 1);
-            normalisedTransformedData = (dataTransformed.data - minMat)./(maxMat - minMat);
-            plotData.data = normalisedTransformedData;
-            % Plot transformed data
-            funtionMySCATTERPLOT(plotData);title('Normalised ***output*** data');
-            plotData.data = dataTransformed.data;
-            funtionMySCATTERPLOT(plotData);title('Un-Normalised ***output*** data');
-            if dataTransformed.flag == 0
-                close all
-            else
-                %error('two positive eigen values');
+            inDataML.trainClasses = 1:inputDataGen.numberOfClasses;
+            outputDataML = functionLearnMetric(inDataML);            
+                  
+            for m = 1:inDataML.maxIterations
+                % Transform data from learned metric
+                metricLearned = outputDataML.arrayM{m};
+                dataTransformed = functionTransformPoints(data2D.data, data2D.labels, metricLearned);
+                [maxV maxI] = max(dataTransformed.data);
+                [minV minI] = min(dataTransformed.data);
+                minMat = repmat(minV, size(dataTransformed.data, 1), 1);
+                maxMat = repmat(maxV, size(dataTransformed.data, 1), 1);
+                normalisedTransformedData = (dataTransformed.data - minMat)./(maxMat - minMat);
+                plotData.data = normalisedTransformedData;
+                % Plot transformed data
+                funtionMySCATTERPLOT(plotData);title('Normalised ***output*** data');
+                plotData.data = dataTransformed.data;
+                %funtionMySCATTERPLOT(plotData);title('Un-Normalised ***output*** data');
+                saveas(gcf, sprintf('data/plots/plot-%02d.png', m));
             end
         end
     end
 end
 
-
-
-
+imageNames = dir(fullfile('data/plots','*.png'));
+imageNames = {imageNames.name}';
+outputVideo = VideoWriter(fullfile('data/plots/','out2.avi'));
+outputVideo.FrameRate = 1;
+open(outputVideo)
+for ii = 1:length(imageNames)
+   img = imread(fullfile('data/plots', imageNames{ii}));
+   writeVideo(outputVideo,img)
+end
+close(outputVideo)
+close all
+save('data/var.mat', 'outputDataML');
+save('data/allVar.mat')
+close all
