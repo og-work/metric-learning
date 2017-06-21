@@ -32,19 +32,24 @@ for epoch = 1:numberOfEpochs
         inNumberOfClasses = 0;
         
         for cl = 1:batchSize
-            thisClassInd = find(fullData.trainClasses == currentBatch(cl));            
-            startI = (thisClassInd - 1) * fullData.numberOfSamplesPerClass + 1;
-            endI = startI + fullData.numberOfSamplesPerClass - 1;
-            inData = [inData; fullData.data(startI:endI, :)];
-            inLabels = [inLabels; fullData.labels(startI:endI, :)];
-            %inLabels = [inLabels; thisClass * ones(fullData.numberOfSamplesPerClass, 1)];
+            tp1 = find(fullData.labels == currentBatch(cl));
+            tp2 = tp1(1:fullData.numberOfSamplesForSGDPerClass);
+            inData = [inData; fullData.data(tp2, :)];
+            inLabels = [inLabels; fullData.labels(tp2)];
+            
+            %             thisClassInd = find(fullData.trainClasses == currentBatch(cl));
+            %             startI = (thisClassInd - 1) * fullData.numberOfSamplesPerClass + 1;
+            %             endI = startI + fullData.numberOfSamplesForSGDPerClass - 1;
+            %             inData = [inData; fullData.data(startI:endI, :)];
+            %             inLabels = [inLabels; fullData.labels(startI:endI, :)];
+            %             %inLabels = [inLabels; thisClass * ones(fullData.numberOfSamplesPerClass, 1)];
             inNumberOfClasses = inNumberOfClasses + 1;
         end
         
         % inData = inputData.data;
         % inNormalisedData = inputData.normalisedData; % Only for debug
         % inLabels = inputData.labels;
-        inNumberOfSamplesPerClass = fullData.numberOfSamplesPerClass;
+        numberOfSamplesForSGDPerClass = fullData.numberOfSamplesForSGDPerClass;
         % inNumberOfClasses = inputData.numberOfClasses;
         lambda = fullData.lambda;
         margin = fullData.margin;
@@ -60,7 +65,6 @@ for epoch = 1:numberOfEpochs
         %outerProductMatrix = zeros(numberOfDataSamples, numberOfDataSamples);
         arrayLambda(1) = lambda;
         
-        %Gradient first term
         k = 1;
         %TODO: Only find upper/lower diagonal elements
         if FAST
@@ -81,7 +85,7 @@ for epoch = 1:numberOfEpochs
         end
         
         tempAllOneMat = ones(size(distanceMatrix));
-        blockMat = ones(inNumberOfSamplesPerClass, inNumberOfSamplesPerClass);
+        blockMat = ones(numberOfSamplesForSGDPerClass, numberOfSamplesForSGDPerClass);
         
         for p = 1:inNumberOfClasses
             matcell{p} = blockMat;
@@ -91,22 +95,16 @@ for epoch = 1:numberOfEpochs
         temp2Mat = tempAllOneMat - blockDiagonalOnesMat;
         tic
         
-        %Gradient descend
-        %for iteration = 1:maxIterations
-        %iteration = batchInd;
         if (rem(iteration, 10) == 0)
             iteration
         end
         
         %Gradient term 1 and loss term1
-        %loss1 = 0;
         gradientGtTerm1 = gradientGtTerm1 * 0;
-        
-        %Batch gradient
         loss1 = 0;
         for classI = 1: inNumberOfClasses
-            indexI = (classI - 1)*inNumberOfSamplesPerClass + 1;
-            indexJ = indexI + inNumberOfSamplesPerClass - 1;
+            indexI = (classI - 1)*numberOfSamplesForSGDPerClass + 1;
+            indexJ = indexI + numberOfSamplesForSGDPerClass - 1;
             for k = indexI:indexJ - 1
                 for p = k + 1: indexJ
                     Xij = (inData(k, :) - inData(p, :))' * (inData(k, :) - inData(p, :));

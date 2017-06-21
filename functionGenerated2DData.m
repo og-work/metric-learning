@@ -6,7 +6,7 @@ sigmaVec = zeros(inData.dataDimension, inData.numberOfClasses);
 
 for p = 1:inData.numberOfClasses
     meanVec(:, p) = randperm(100, inData.dataDimension)';
-    sigmaVec(:, p) = randperm(25, inData.dataDimension)';
+    sigmaVec(:, p) = randperm(100, inData.dataDimension)';
 end
 
 rng(1); % For reproducibility

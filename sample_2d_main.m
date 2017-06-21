@@ -1,9 +1,8 @@
 % Sample program to check top push metric learning on 2D data
-
-% close all
+close all
 clear;
 %% Generate synthetic data
-inputDataGen.numberOfClasses = 12;
+inputDataGen.numberOfClasses = 5;
 inputDataGen.dataDimension = 2;
 inputDataGen.numberOfSamplesPerClass = 5;
 data2D = functionGenerated2DData(inputDataGen);
@@ -29,7 +28,7 @@ marginArray = 1:100:1000;
 maxIterationsArray = 100:100:500;
 inDataML.data = data2D.data;
 inDataML.labels = data2D.labels;
-inDataML.numberOfSamplesPerClass = inputDataGen.numberOfSamplesPerClass;
+inDataML.numberOfSamplesForSGDPerClass = inputDataGen.numberOfSamplesPerClass;
 inDataML.numberOfClasses = inputDataGen.numberOfClasses;
 
 %Metric learning
@@ -37,7 +36,7 @@ for lambda = lambdaArray
     for margin = marginArray
         for maxIterations = maxIterationsArray
             inDataML.lambda = 0.001;%lambda;
-            inDataML.margin = 100;%margin;
+            inDataML.margin = 0;%margin;
             inDataML.maxIterations = 100;%maxIterations;
             inDataML.normalisedData = normalisedData; % Only for debug
             inDataML.trainClasses = 1:inputDataGen.numberOfClasses;
@@ -54,9 +53,9 @@ for lambda = lambdaArray
                 normalisedTransformedData = (dataTransformed.data - minMat)./(maxMat - minMat);
                 plotData.data = normalisedTransformedData;
                 % Plot transformed data
-                funtionMySCATTERPLOT(plotData);title('Normalised ***output*** data');
+                %funtionMySCATTERPLOT(plotData);title('Normalised ***output*** data');
                 plotData.data = dataTransformed.data;
-                %funtionMySCATTERPLOT(plotData);title('Un-Normalised ***output*** data');
+                funtionMySCATTERPLOT(plotData);title('Un-Normalised ***output*** data');
                 saveas(gcf, sprintf('data/plots/plot-%02d.png', m));
             end
         end
